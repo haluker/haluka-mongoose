@@ -1,0 +1,19 @@
+{
+  "name": "haluka-mongoose",
+  "version": "1.0.0",
+  "description": "MongoDB Service Provider for Haluka (using mongoose)",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "author": "Robin Panta",
+  "license": "MIT",
+  "dependencies": {
+    "mongoose": "^6.4.1"
+  },
+  "devDependencies": {
+    "@haluka/core": "^2.0.2",
+    "jest": "^28.1.1",
+    "lodash": "^4.17.21"
+  }
+}
