@@ -12,7 +12,7 @@ class MongooseServiceProvider extends ServiceProvider {
         })
 
         this.app.singleton('Haluka/Provider/Mongoose/ModelBinding', function (app, { MongooseConfig }) {
-            return new MongooseManager(MongooseConfig, app)
+            return new ModelBinding()
         })
     }
 }
@@ -30,7 +30,7 @@ class MongooseManager {
     }
     async setupAll() {
         mongoose.plugin(this._softDeletesPlugin())
-        
+
         for (var conf in this.config.connections) {
             var connection = this.config.connections[conf]
             this.connections[conf] = await this.mongoConnect(connection)
