@@ -46,15 +46,21 @@ class MongooseManager {
         return this._booted
     }
     default() {
-        return this.connections['default']
+        return this.using('default')
     }
     using(conn) {
+        if (!this._booted)
+            throw Error(`Database not yet booted. Possible reasons might be unavailability of database config.`)
+
         if (this.connections[conn])
             return this.connections[conn]
         else
             throw new TypeError(`No database connection exists  with name '${conn}'. Please check your database config.`)
     }
     async close(conn) {
+        if (!this._booted)
+            throw Error(`Database not yet booted. Possible reasons might be unavailability of database config.`)
+
         if (!!this.connections[conn]) {
             await (this.connections[conn]).close();
             this.app.use('Haluka/Core/Events').fire('Database.Closed', conn, this.connections[conn])
