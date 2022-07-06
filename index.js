@@ -107,7 +107,7 @@ class ModelBinding {
         return new ModelBinding(Model, item, ctx)
     }
 
-    static withForm (ctx, Model) {
+    static async withForm (ctx, Model, conversion = {}) {
         validateBindingModel(Model)
 
         if (!ctx.req.body) throw 'Cannot parse body. Do you have a proper body parser for this request?'
@@ -118,7 +118,13 @@ class ModelBinding {
             throw createError(400)
         
         let gettableFields = Object.values(modelFields).map(x => x.path)
-        let document = new Model(_.pick(ctx.req.body, gettableFields))
+        let postData = _.pick(ctx.req.body, gettableFields)
+
+        // prepare data based on data type
+        for (let field of Object.keys(postData)) {
+            postData[field] = await prepareValue(modelFields[field], postData[field], conversion[field])
+        }
+        let document = new Model(postData)
         return new ModelBinding(Model, document, ctx)
     }
 
@@ -131,7 +137,7 @@ class ModelBinding {
     async updateDocument (newValues, respond = undefined) {
         if (!this.document) return this.ctx.next(createError(401))
         try {
-            for (let field in Object.keys(newValues)) {
+            for (let field of Object.keys(newValues)) {
                 this.document[field] = newValues[field]
             }
             await this.document.save()
@@ -142,6 +148,16 @@ class ModelBinding {
         } finally {
             if (respond && typeof respond === 'function') return await respond(this.document)
             this.ctx.res.status(200).json({ status: "success", message: `${this.document.constructor.modelName} updated successfully.` })
+        }
+    }
+
+    async setField (fieldName, callback) {
+        try {
+            this.document[fieldName] = await callback(this.document[fieldName], this.ctx.req.body[fieldName])
+        } catch (error) {
+            if (!this.ctx.res.locals) this.ctx.res.locals = {}
+            this.ctx.res.locals.errors = err
+            return next(createError(500, err.message))
         }
     }
 
@@ -169,7 +185,7 @@ class ModelBinding {
         try {
             await this.document.save()
             if (respond && typeof respond === 'function') return await respond(this.document)
-            this.ctx.res.status(200).json({ status: "success", message: `${this.document.constructor.modelName} created successfully.` })
+            this.ctx.res.status(200).json({ status: "success", message: `${this.document.constructor.modelName} saved successfully.` })
         } catch (error) {
             if (!this.ctx.res.locals) this.ctx.res.locals = {}
             this.ctx.res.locals.errors = error
@@ -205,4 +221,41 @@ function validateRequest (req, key) {
     if (!req.params[key]) throw createError(400)
 }
 
+async function prepareValue (modelField, value, Model = undefined) {
+    switch (modelField.instance) {
+        case 'String':
+        case 'Number':
+        case 'Decimal128':
+        case 'Boolean':
+            return value
+        case 'Date':
+            return new Date(value)
+        case 'ObjectID':
+            let ref = modelField.options.ref
+            if (!Model) return null
+            let modelName = Model.name || Model.constructor.name
+            if (ref && ref !== modelName) throw Error("Object 'ref' and conversion Model name doesn't match.")
+            let query = {}
+            query[Model.getModelParamKey()] = value
+            query['softDeleted'] = false
+            let item = await Model.findOne(query)
+            if (!item) throw Error(`No any ${modelName} found with ${Model.getModelParamKey()} as '${value}'.`)
+            return item
+        case 'Array':
+            let retItem = []
+            if (!Array.isArray(value)) value = [value]
+            for (let itm of value) {
+                let inField = await prepareValue(modelField.caster, itm, Model)
+                if (inField) retItem.push(inField)
+            }
+            return retItem
+        case 'Buffer':
+            return value?.data || value
+        case 'Map':
+        case 'Schema':
+        case 'Mixed':
+        default:
+            return null
+    }
+}
 exports.ModelBinding = ModelBinding
