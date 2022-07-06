@@ -2,6 +2,7 @@
 
 const _ = require("lodash")
 const mongoose = require("mongoose")
+const createError = require("http-errors")
 const ServiceProvider = require("@haluka/core").ServiceProvider
 
 class MongooseServiceProvider extends ServiceProvider {
@@ -11,8 +12,8 @@ class MongooseServiceProvider extends ServiceProvider {
             return new MongooseManager(MongooseConfig, app)
         })
 
-        this.app.singleton('Haluka/Provider/Mongoose/ModelBinding', function (app, { MongooseConfig }) {
-            return new ModelBinding()
+        this.app.singleton('Haluka/Provider/Mongoose/ModelBinding', function (app) {
+            return ModelBinding
         })
     }
 }
@@ -74,23 +75,105 @@ exports.default = MongooseServiceProvider
 
 class ModelBinding {
 
-    static withRoute (req, Model, includeSoftDeletes = false) {
-
-        validateBindingModel(Model)
-        validateRequest(req, Model.getRouteParamKey())
-
-        let query = {}
-        query[Model.getModelParamKey()] = req.params[Model.getRouteParamKey()]
-        
-        let item = undefined
-        if (Model.binding && typeof(Model.binding) == 'function')
-            item = Model.binding(req)
-        else
-            item = Model.find({ id: req.params[Model.getRouteParamKey()], softDeleted: false })
-
+    constructor (Model, document, ctx) {
+        this.Model = Model
+        this.document = document
+        this.ctx = ctx
     }
 
-    static withForm (req, Model)
+    static async withRoute (ctx, Model, includeSoftDeletes = false) {
+
+        validateBindingModel(Model) 
+        validateRequest(ctx.req, Model.getRouteParamKey())
+
+        let query = {}
+        query[Model.getModelParamKey()] = ctx.req.params[Model.getRouteParamKey()]
+        if (includeSoftDeletes == false) query['softDeleted'] = false
+
+        let item = undefined
+        if (Model.binding && typeof(Model.binding) == 'function')
+            item = await Model.binding(ctx,req)
+        else
+            item = await Model.findOne(query)
+        
+        return new ModelBinding(Model, item, ctx)
+    }
+
+    static withForm (ctx, Model) {
+        validateBindingModel(Model)
+
+        let modelFields = Model.schema.paths
+        let requiredFields = Object.values(modelFields).filter(x => x.isRequired == true).map(x => x.path)
+        if (!requiredFields.every(x => Object.keys(ctx.req.body).includes(x)))
+            throw createError(400)
+        
+        let document = new Model(_.pick(ctx.body), requiredFields)
+        return new ModelBinding(Model, document, ctx)
+    }
+
+    handleResponse (respond = undefined) {
+        if (!this.document) return this.ctx.next(createError(404))
+        if (respond && typeof respond === 'function') return await respond(this.document)
+        this.ctx.res.status(200).json({ status: "success", data: this.document.lean() })
+    }
+
+    async updateDocument (newValues, respond = undefined) {
+        if (!this.document) return this.ctx.next(createError(401))
+        try {
+            for (let field in Object.keys(newValues)) {
+                this.document[field] = newValues[field]
+            }
+            await this.document.save()
+        } catch (err) {
+            this.ctx.res.locals?.errors = err
+            return next(createError(500, err.message))
+        } finally {
+            if (respond && typeof respond === 'function') return await respond(this.document)
+            this.ctx.res.status(200).json({ status: "success", message: `${this.document.constructor.modelName} updated successfully.` })
+        }
+    }
+
+    async deleteDocument (isSoftDelete = true, respond = undefined) {
+        if (!this.document) return this.ctx.next(createError(401))
+        try {
+            if (isSoftDelete) {
+                this.document.softDeleted = true
+                await this.document.save()
+            } else {
+                await this.document.delete()
+            }
+        } catch (err) {
+            this.ctx.res.locals?.errors = err
+            return next(createError(500, err.message))
+        } finally {
+            if (respond && typeof respond === 'function') return await respond(this.document)
+            this.ctx.res.status(200).json({ status: "success", message: `${this.document.constructor.modelName} deleted successfully.` })
+        }
+    }
+
+    async saveDocument (respond = undefined) {
+        if (!this.document) return this.ctx.next(createError(401))
+        try {
+            await this.document.save()
+            if (respond && typeof respond === 'function') return await respond(this.document)
+            this.ctx.res.status(200).json({ status: "success", message: `${this.document.constructor.modelName} created successfully.` })
+        } catch (error) {
+            this.ctx.res.locals?.errors = error
+            if (!respond)
+                return this.ctx.res.status(500).json({ status: "error", error: error.message })
+            await respond(error)
+        }
+    }
+
+    async validate () {
+        try {
+            await this.document.validate()
+            return true
+        } catch (error) {
+            this.ctx.res.locals?.errors = error.errors
+            return error
+        }
+    }
 
 }
 
@@ -103,8 +186,8 @@ function validateBindingModel (Model) {
 }
 
 function validateRequest (req, key) {
-    if (!req) throw "Invalid Request passed for Model Binding."
-    if (!req.params[key]) throw "Route Params doesn't exist"
+    if (!req) throw createError(400)
+    if (!req.params[key]) throw createError(400)
 }
 
 exports.ModelBinding = ModelBinding

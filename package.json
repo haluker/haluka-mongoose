@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@haluka/core": "^2.0.2",
+    "http-errors": "^2.0.0",
     "jest": "^28.1.1",
     "lodash": "^4.17.21"
   }
