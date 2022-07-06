@@ -30,11 +30,10 @@ class MongooseManager {
         return await mongoose.createConnection(conf.connString, conf.options).asPromise()
     }
     async setupAll() {
-        mongoose.plugin(this._softDeletesPlugin())
-
         for (var conf in this.config.connections) {
             var connection = this.config.connections[conf]
             this.connections[conf] = await this.mongoConnect(connection)
+            this.connections[conf].plugin(this._softDeletesPlugin())
             this.app.use('Haluka/Core/Events').fire('Database.Connected', conf, connection)
         }
         if (!!this.config['default'] && !!this.config['connections'] && this.config.default in this.config['connections']) {
@@ -73,7 +72,10 @@ class MongooseManager {
     }
     _softDeletesPlugin () {
         return (schema) => {
-            schema.add({ softDeleted: false })
+            schema.add({ softDeleted: {
+                type: Boolean,
+                default: false
+            } })
         }
     }
 }
@@ -109,12 +111,14 @@ class ModelBinding {
         validateBindingModel(Model)
 
         if (!ctx.req.body) throw 'Cannot parse body. Do you have a proper body parser for this request?'
-        let modelFields = Model.schema.paths
+        let modelFields = _.omit(Model.schema.paths,  ['_id', 'softDeleted', '__v', ])
+
         let requiredFields = Object.values(modelFields).filter(x => x.isRequired == true).map(x => x.path)
         if (!requiredFields.every(x => Object.keys(ctx.req.body).includes(x)))
             throw createError(400)
         
-        let document = new Model(_.pick(ctx.req.body, requiredFields))
+        let gettableFields = Object.values(modelFields).map(x => x.path)
+        let document = new Model(_.pick(ctx.req.body, gettableFields))
         return new ModelBinding(Model, document, ctx)
     }
 

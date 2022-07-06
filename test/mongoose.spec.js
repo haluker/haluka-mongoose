@@ -45,12 +45,17 @@ test('model binding', async () => {
     Model.getModelParamKey = () => 'username'
     Model.getRouteParamKey = () => 'username'
     let binding = ModelBinding.withForm({
-        req: { body: { username: 'test-user'} },
+        req: { body: { username: 'test-user', fullName: 'Test User', age: 69 } },
         res: {},
         next: () => {}
     }, Model)
 
-    // console.log(binding)
+    expect(binding.document).toHaveProperty('username', 'test-user')
+    expect(binding.document).toHaveProperty('fullName', 'Test User')
+    expect(binding.document).not.toHaveProperty('age')
+    expect(binding.document).toHaveProperty('_id')
+    expect(binding.document).toHaveProperty('softDeleted', false)
+
     await db.closeAll()
 })
 
