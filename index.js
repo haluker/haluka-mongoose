@@ -102,6 +102,7 @@ class ModelBinding {
     static withForm (ctx, Model) {
         validateBindingModel(Model)
 
+        if (!ctx.req.body) throw 'Cannot parse body. Do you have a proper body parser for this request?'
         let modelFields = Model.schema.paths
         let requiredFields = Object.values(modelFields).filter(x => x.isRequired == true).map(x => x.path)
         if (!requiredFields.every(x => Object.keys(ctx.req.body).includes(x)))
@@ -113,7 +114,7 @@ class ModelBinding {
 
     handleResponse (respond = undefined) {
         if (!this.document) return this.ctx.next(createError(404))
-        if (respond && typeof respond === 'function') return await respond(this.document)
+        if (respond && typeof respond === 'function') return respond(this.document)
         this.ctx.res.status(200).json({ status: "success", data: this.document.lean() })
     }
 
@@ -125,7 +126,8 @@ class ModelBinding {
             }
             await this.document.save()
         } catch (err) {
-            this.ctx.res.locals?.errors = err
+            if (!this.ctx.res.locals) this.ctx.res.locals = {}
+            this.ctx.res.locals.errors = err
             return next(createError(500, err.message))
         } finally {
             if (respond && typeof respond === 'function') return await respond(this.document)
@@ -143,7 +145,8 @@ class ModelBinding {
                 await this.document.delete()
             }
         } catch (err) {
-            this.ctx.res.locals?.errors = err
+            if (!this.ctx.res.locals) this.ctx.res.locals = {}
+            this.ctx.res.locals.errors = err
             return next(createError(500, err.message))
         } finally {
             if (respond && typeof respond === 'function') return await respond(this.document)
@@ -158,7 +161,8 @@ class ModelBinding {
             if (respond && typeof respond === 'function') return await respond(this.document)
             this.ctx.res.status(200).json({ status: "success", message: `${this.document.constructor.modelName} created successfully.` })
         } catch (error) {
-            this.ctx.res.locals?.errors = error
+            if (!this.ctx.res.locals) this.ctx.res.locals = {}
+            this.ctx.res.locals.errors = error
             if (!respond)
                 return this.ctx.res.status(500).json({ status: "error", error: error.message })
             await respond(error)
@@ -170,7 +174,8 @@ class ModelBinding {
             await this.document.validate()
             return true
         } catch (error) {
-            this.ctx.res.locals?.errors = error.errors
+            if (!this.ctx.res.locals) this.ctx.res.locals = {}
+            this.ctx.res.locals.errors = error.errors
             return error
         }
     }

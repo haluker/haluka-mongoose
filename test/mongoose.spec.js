@@ -45,12 +45,12 @@ test('model binding', async () => {
     Model.getModelParamKey = () => 'username'
     Model.getRouteParamKey = () => 'username'
     let binding = ModelBinding.withForm({
-        req: {},
+        req: { body: { username: 'test-user'} },
         res: {},
         next: () => {}
     }, Model)
 
     // console.log(binding)
-
+    await db.closeAll()
 })
 
