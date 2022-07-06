@@ -9,7 +9,6 @@ class MongooseServiceProvider extends ServiceProvider {
 
     register() {
         this.app.singleton('Haluka/Provider/Mongoose', function (app, { MongooseConfig }) {
-            if (!MongooseConfig) throw 'Database not configured. Please add a database config file in config directory or specify a MongooseConfig object during resolution.'
             return new MongooseManager(MongooseConfig, app)
         })
 
@@ -115,7 +114,7 @@ class ModelBinding {
         if (!requiredFields.every(x => Object.keys(ctx.req.body).includes(x)))
             throw createError(400)
         
-        let document = new Model(_.pick(ctx.body), requiredFields)
+        let document = new Model(_.pick(ctx.body, requiredFields))
         return new ModelBinding(Model, document, ctx)
     }
 
