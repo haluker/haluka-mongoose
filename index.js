@@ -9,6 +9,7 @@ class MongooseServiceProvider extends ServiceProvider {
 
     register() {
         this.app.singleton('Haluka/Provider/Mongoose', function (app, { MongooseConfig }) {
+            if (!MongooseConfig) throw 'Database not configured. Please add a database config file in config directory or specify a MongooseConfig object during resolution.'
             return new MongooseManager(MongooseConfig, app)
         })
 
