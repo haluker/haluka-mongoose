@@ -114,7 +114,7 @@ class ModelBinding {
         if (!requiredFields.every(x => Object.keys(ctx.req.body).includes(x)))
             throw createError(400)
         
-        let document = new Model(_.pick(ctx.body, requiredFields))
+        let document = new Model(_.pick(ctx.req.body, requiredFields))
         return new ModelBinding(Model, document, ctx)
     }
 
