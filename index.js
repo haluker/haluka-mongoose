@@ -11,7 +11,6 @@ class MongooseServiceProvider extends ServiceProvider {
         this.app.singleton('Haluka/Provider/Mongoose', function (app, { MongooseConfig }) {
             return new MongooseManager(MongooseConfig, app)
         })
-
         this.app.singleton('Haluka/Provider/Mongoose/ModelBinding', function (app) {
             return ModelBinding
         })
@@ -131,7 +130,7 @@ class ModelBinding {
     handleResponse (respond = undefined) {
         if (!this.document) return this.ctx.next(createError(404))
         if (respond && typeof respond === 'function') return respond(this.document)
-        this.ctx.res.status(200).json({ status: "success", data: this.document.lean() })
+        this.ctx.res.status(200).json({ status: "success", data: this.document })
     }
 
     async updateDocument (newValues, respond = undefined) {
@@ -210,10 +209,13 @@ class ModelBinding {
 
 function validateBindingModel (Model) {
     if (!Model.getModelParamKey || typeof(Model.getModelParamKey) !== 'function')
-    throw 'Model Identifier not set. Please add a static getModelParamKey() function to your Model.'
+        throw 'Model Identifier not set. Please add a static getModelParamKey() function to your Model.'
+
+    if (!Object.keys(Model.schema.paths).includes(Model.getModelParamKey()))
+        throw "Model doesn't have the specified Model Param Key." 
 
     if (!Model.getRouteParamKey || typeof(Model.getRouteParamKey) !== 'function')
-    throw 'Route Param Identifier not set. Please add a static getRouteParamKey() function to your Model.'
+        throw 'Route Param Identifier not set. Please add a static getRouteParamKey() function to your Model.'
 }
 
 function validateRequest (req, key) {
