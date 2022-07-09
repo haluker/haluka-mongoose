@@ -140,20 +140,21 @@ class ModelBinding {
                 this.document[field] = newValues[field]
             }
             await this.document.save()
+            if (respond && typeof respond === 'function') return respond(null, this.document)
+            this.ctx.res.status(200).json({ status: "success", message: `${this.document.constructor.modelName} updated successfully.` })
         } catch (err) {
             if (!this.ctx.res.locals) this.ctx.res.locals = {}
             this.ctx.res.locals.errors = err
-            return next(createError(500, err.message))
-        } finally {
-            if (respond && typeof respond === 'function') return await respond(this.document)
-            this.ctx.res.status(200).json({ status: "success", message: `${this.document.constructor.modelName} updated successfully.` })
+            if (!respond)
+                return next(createError(500, err.message))
+                respond(err, this.document)
         }
     }
 
     async setField (fieldName, callback) {
         try {
             this.document[fieldName] = await callback(this.document[fieldName], this.ctx.req.body[fieldName])
-        } catch (error) {
+        } catch (err) {
             if (!this.ctx.res.locals) this.ctx.res.locals = {}
             this.ctx.res.locals.errors = err
             return next(createError(500, err.message))
@@ -169,13 +170,14 @@ class ModelBinding {
             } else {
                 await this.document.delete()
             }
+            if (respond && typeof respond === 'function') return respond(null, this.document)
+            this.ctx.res.status(200).json({ status: "success", message: `${this.document.constructor.modelName} deleted successfully.` })
         } catch (err) {
             if (!this.ctx.res.locals) this.ctx.res.locals = {}
             this.ctx.res.locals.errors = err
-            return next(createError(500, err.message))
-        } finally {
-            if (respond && typeof respond === 'function') return await respond(this.document)
-            this.ctx.res.status(200).json({ status: "success", message: `${this.document.constructor.modelName} deleted successfully.` })
+            if (!respond)
+                return next(createError(500, err.message))
+            respond(err, this.document)
         }
     }
 
@@ -183,14 +185,14 @@ class ModelBinding {
         if (!this.document) return this.ctx.next(createError(401))
         try {
             await this.document.save()
-            if (respond && typeof respond === 'function') return await respond(this.document)
+            if (respond && typeof respond === 'function') return respond(null, this.document)
             this.ctx.res.status(200).json({ status: "success", message: `${this.document.constructor.modelName} saved successfully.` })
-        } catch (error) {
+        } catch (err) {
             if (!this.ctx.res.locals) this.ctx.res.locals = {}
-            this.ctx.res.locals.errors = error
+            this.ctx.res.locals.errors = err
             if (!respond)
-                return this.ctx.res.status(500).json({ status: "error", error: error.message })
-            await respond(error)
+                return next(createError(500, err.message))
+            respond(err, this.document)
         }
     }
 
