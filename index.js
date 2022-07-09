@@ -99,7 +99,7 @@ class ModelBinding {
 
         let item = undefined
         if (Model.binding && typeof(Model.binding) == 'function')
-            item = await Model.binding(ctx,req)
+            item = await Model.binding(ctx.req)
         else
             item = await Model.findOne(query)
         
